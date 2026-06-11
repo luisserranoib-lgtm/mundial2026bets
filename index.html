@@ -437,10 +437,30 @@ function betRow(b,showL=true){
     <td>${b.fecha}</td><td>${b.partido||"—"}</td>
     <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${b.pick}">${b.pick}</td>
     ${showL?`<td>${lbadge(b.linea)}</td>`:""}
-    <td>${fmt(b.stake)}</td><td>${parseFloat(b.cuota).toFixed(2)}</td>
+    <td>${fmt(b.stake)}</td>
+    <td><div style="display:flex;align-items:center;gap:5px">${parseFloat(b.cuota).toFixed(2)}<div style="width:7px;height:7px;border-radius:50%;background:${b.cuota<1.5?"#16a34a":b.cuota<2?"#65a30d":b.cuota<3?"#ca8a04":b.cuota<5?"#ea580c":"#dc2626"};flex-shrink:0"></div></div></td>
     <td>${fmt(ret(b))}</td><td>${fmtPL(pl)}</td>
     <td>${stbtn(b)}</td><td>${actbtns(b._id)}</td>
   </tr>`;
+}
+
+function riskDot(cuota){
+  // Lower odds = safer, higher odds = riskier
+  // 1.0-1.5: green (very safe), 1.5-2.0: lime, 2.0-3.0: yellow, 3.0-5.0: orange, 5.0+: red
+  let color,label;
+  if(cuota<1.5){color="#16a34a";label="Segura";}
+  else if(cuota<2.0){color="#65a30d";label="Probable";}
+  else if(cuota<3.0){color="#ca8a04";label="Media";}
+  else if(cuota<5.0){color="#ea580c";label="Arriesgada";}
+  else{color="#dc2626";label="Alta riesgo";}
+  const pct=Math.min(100,Math.round((cuota-1)/9*100));
+  return`<div style="display:flex;align-items:center;gap:5px;margin-top:4px">
+    <div style="width:60px;height:4px;background:#e5e7eb;border-radius:2px;overflow:hidden">
+      <div style="width:${pct}%;height:100%;background:${color};border-radius:2px"></div>
+    </div>
+    <div style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0"></div>
+    <span style="font-size:10px;font-weight:600;color:${color}">${label}</span>
+  </div>`;
 }
 
 function pendingCard(b){
@@ -448,6 +468,7 @@ function pendingCard(b){
     <div class="pending-left">
       <div class="pending-match">${b.partido||b.pick}</div>
       <div class="pending-pick">${lbadge(b.linea)} ${b.partido?b.pick:""} · ${parseFloat(b.cuota).toFixed(2)}x</div>
+      ${riskDot(b.cuota)}
     </div>
     <div class="pending-right">
       <div class="pending-ret">${fmt(ret(b))}</div>
@@ -510,13 +531,15 @@ function rDashboard(){
   const wr=closed>0?Math.round(won/closed*100):0;
   const pending=all.filter(b=>b.resultado==="pendiente");
   const potentialRet=pending.reduce((s,b)=>s+ret(b),0);
+  const pendingStakeTotal=pending.reduce((s,b)=>s+b.stake,0);
+  const bankDisp=490+totalPL-pendingStakeTotal;
 
   document.getElementById("d-stats").innerHTML=`
     <div class="sc"><div class="sc-lbl">P/L total</div><div class="sc-val ${totalPL>=0?"c-green":"c-red"}">${totalPL>=0?"+":""}${fmt(totalPL)}</div><div class="sc-sub">${closed} cerradas</div></div>
     <div class="sc"><div class="sc-lbl">Win rate</div><div class="sc-val">${wr}%</div><div class="sc-sub">${won}W · ${closed-won}L</div></div>
-    <div class="sc"><div class="sc-lbl">En juego</div><div class="sc-val">${pending.length}</div><div class="sc-sub">retorno pot. ${fmt(potentialRet)}</div></div>
+    <div class="sc"><div class="sc-lbl">En juego</div><div class="sc-val c-orange">${fmt(pendingStakeTotal)}</div><div class="sc-sub">${pending.length} apuestas · ret. pot. ${fmt(potentialRet)}</div></div>
     <div class="sc"><div class="sc-lbl">Total picks</div><div class="sc-val">${all.length}</div><div class="sc-sub">todas las líneas</div></div>
-    <div class="sc"><div class="sc-lbl">Bank total</div><div class="sc-val">${fmt(490+totalPL)}</div><div class="sc-sub">de $490 iniciales</div></div>`;
+    <div class="sc"><div class="sc-lbl">Bank disponible</div><div class="sc-val ${bankDisp>=0?"c-green":"c-red"}">${fmt(bankDisp)}</div><div class="sc-sub">de $490 · pendientes descontados</div></div>`;
 
   // pending cards
   const pdiv=document.getElementById("d-pending");
